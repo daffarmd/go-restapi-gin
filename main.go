@@ -1,33 +1,23 @@
 package main
 
 import (
-	"root/initializers"
+	// "fmt"
+	"root/controllers/productcontroller"
+	"root/models"
 
 	"github.com/gin-gonic/gin"
 )
 
-func init() {
-	initializers.LoadEnvVariables()
-	initializers.ConnectToDB()
-}
-
 func main() {
-	app := gin.Default()
+	// fmt.Print("test")
+	r := gin.Default()
+	models.ConnectToDB()
 
-	route := app
-	route.GET("/", func(ctx *gin.Context) {
-		isValidated := false
-		if !isValidated {
-			ctx.AbortWithStatusJSON(4000, gin.H{
-				"message": "bad request",
-			})
-			return
-		}
-		ctx.JSON(200, gin.H{
-			"hello": "world",
-		})
-	})
+	r.GET("/api/products", productcontroller.Index)
+	r.GET("/api/product/:id", productcontroller.Show)
+	r.POST("/api/product", productcontroller.Create)
+	r.PUT("/api/product/:id", productcontroller.Update)
+	r.DELETE("/api/product", productcontroller.Delete)
 
-	app.Run()
-
+	r.Run(":4477")
 }
