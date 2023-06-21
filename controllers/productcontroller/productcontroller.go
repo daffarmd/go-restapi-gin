@@ -3,7 +3,7 @@ package productcontroller
 import (
 	"encoding/json"
 	"net/http"
-	
+
 	"root/models"
 
 	"github.com/gin-gonic/gin"
@@ -13,40 +13,34 @@ import (
 func Index(c *gin.Context) {
 	var products []models.Product
 
-// Execute the native query
-result := models.DB.Raw("SELECT * FROM products").Scan(&products)
+	result := models.DB.Raw("SELECT * FROM products").Scan(&products)
 
-// Check for errors
-if result.Error != nil {
-	c.JSON(http.StatusInternalServerError, gin.H{
-		"error": result.Error.Error(),
-	})
-	return
+	if result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": result.Error.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"products": products})
 }
-
-// Return the products
-c.JSON(http.StatusOK, gin.H{
-	"products": products,
-})
-}
-
 
 func Show(c *gin.Context) {
 	var product models.Product
 	id := c.Param("id")
 
-	if err := models.DB.First(&product, id).Error; err != nil {
-		switch err {
-		case gorm.ErrRecordNotFound:
+	result := models.DB.Raw("SELECT * FROM products WHERE id = ?", id).Scan(&product)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"message": "Data tidak ditemukan"})
 			return
-		default:
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": err.Error()})
-			return
 		}
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"product": product})
+
 }
 
 func Create(c *gin.Context) {
@@ -58,8 +52,16 @@ func Create(c *gin.Context) {
 		return
 	}
 
-	models.DB.Create(&product)
+	result := models.DB.Exec("INSERT INTO products (nama_product, deskripsi) VALUES (?, ?)",
+		product.NamaProduct, product.Deskripsi)
+
+	if result.Error != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"product": product})
+
 }
 
 func Update(c *gin.Context) {
@@ -71,18 +73,19 @@ func Update(c *gin.Context) {
 		return
 	}
 
-	if models.DB.Model(&product).Where("id = ?", id).Updates(&product).RowsAffected == 0 {
-		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "tidak dapat mengupdate product"})
+	result := models.DB.Exec("UPDATE products SET nama_product = ?, deskripsi = ? WHERE id = ?",
+		product.NamaProduct, product.Deskripsi, id)
+
+	if result.Error != nil {
+		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"message": result.Error.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Data berhasil diperbarui"})
+	c.JSON(http.StatusOK, gin.H{"product": product})
 
 }
 
 func Delete(c *gin.Context) {
-
-	var product models.Product
 
 	var input struct {
 		Id json.Number
@@ -94,7 +97,11 @@ func Delete(c *gin.Context) {
 	}
 
 	id, _ := input.Id.Int64()
-	if models.DB.Delete(&product, id).RowsAffected == 0 {
+
+	query := "DELETE FROM products WHERE id = ?"
+	result := models.DB.Exec(query, id)
+
+	if result.RowsAffected == 0 {
 		c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": "Tidak dapat menghapus product"})
 		return
 	}
